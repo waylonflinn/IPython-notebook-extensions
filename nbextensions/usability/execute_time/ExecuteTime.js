@@ -16,6 +16,15 @@ define(["require", "jquery", "base/js/namespace", "base/js/events"], function (r
     var month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     var day_names = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
+    // if it's longer than this number of seconds, play a sound.
+    var LONG_DURATION = 10
+    var ding = new Audio('/nbextensions/usability/execute_time/ding.mp3'),
+        ticking = new Audio('/nbextensions/usability/execute_time/ticking.mp3'),
+        tickTimeout;
+
+
+    ticking.loop = true;
+
     var patchCodecellExecute = function() {
         console.log('patching codecell to trigger ExecuteCell.ExecuteTime');
         IPython.CodeCell.prototype.old_execute = IPython.CodeCell.prototype.execute;
@@ -93,7 +102,7 @@ define(["require", "jquery", "base/js/namespace", "base/js/events"], function (r
         hour = (hour > 12) ? hour - 12 : hour;
 
         var min = date.getMinutes() + "";
-        min = (min.length == 1) ? "0" + min: min;        
+        min = (min.length == 1) ? "0" + min: min;
 
         return dnames+ ', ' + mon + day + year + 'at ' + hour + ":" + min + " " + a_p;
     }
@@ -109,22 +118,33 @@ define(["require", "jquery", "base/js/namespace", "base/js/events"], function (r
                 firstExecTime=execTime;
             execCells.push([IPython.notebook.get_selected_index()]);
 
-            var startMsg = 'Lastly executed on ' + date_fmt(execTime);
+            var startMsg = 'Last executed on <span class="date_string">' + date_fmt(execTime) + '</span>';
 
-            var timing_area=ce.find(".timing_area");
-            if (timing_area.length === 0) {
-                var timing_area = $('<div/>').addClass('timing_area');
+            var start_area=ce.find(".start_area");
+            if (start_area.length === 0) {
+                var timing_area = $('<div/>').addClass('timing_area'),
+                    duration_area = $('<div/>').addClass('duration_area'),
+                    start_area = $('<div/>').addClass('start_area');
 
+                timing_area.append(duration_area);
+                timing_area.append(start_area);
                 timing_area.dblclick(toggleDisplay);
 
                 ce.find(".input_area").css('border-radius','4px 4px 0 0');
                 ce.find(".inner_cell").append(timing_area);
             }
-            timing_area.text(startMsg);
+            start_area.html(startMsg);
+
+            tickTimeout = window.setTimeout(function(){
+                ticking.play();
+            }, LONG_DURATION * 1000);
         }
     };
 
     var executionEndTime = function(event) {
+        window.clearTimeout(tickTimeout);
+        ticking.pause();
+
         if (firstExecTime === null) {
             return;
         }
@@ -150,12 +170,28 @@ define(["require", "jquery", "base/js/namespace", "base/js/events"], function (r
             if (hours) {
                 durationMsg = hours + ' h ' + durationMsg;
             }
-            durationMsg = ' in ' + durationMsg;
+            if(ET < 1){
+                durationMsg = 'instant';
+            } else if (ET < LONG_DURATION){
+                durationMsg = 'fast <span class="duration_string">' + durationMsg + '<span>';
 
-            var ta=cell.element.find("div.timing_area");
-            ta.html(ta.html() + durationMsg);
+            } else if (ET < LONG_DURATION * 10){
+                durationMsg = 'med  <span class="duration_string">' + durationMsg + '<span>';
+            } else {
+                durationMsg = 'slow <span class="duration_string">' + durationMsg + '<span>';
+            }
+
+            var da=cell.element.find("div.duration_area"),
+                ta=cell.element.find("div.timing_area");
+
+            da.html(durationMsg);
             ta.hide();
-            ta.show('highlight', {color:'#b00000'}, 1000);
+            ta.show('highlight', {color:'#c000c0'}, 1000);
+
+            if(ET > LONG_DURATION){
+                // play a sound
+                ding.play();
+            }
 
             if (!execCells.length) {
                 firstExecTime=null;

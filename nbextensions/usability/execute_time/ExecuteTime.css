@@ -4,3 +4,16 @@
     border: 1px solid #CFCFCF;
     border-top: none;
 }
+
+.date_string {
+    font-weight: bolder;
+}
+.duration_string {
+    font-weight: bolder;
+}
+.start_area {
+    float: right;
+}
+.duration_area {
+    display: inline-block;
+}
